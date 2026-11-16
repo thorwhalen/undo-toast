@@ -72,6 +72,7 @@ describe('matchesHotkey', () => {
     expect(matchesHotkey(ev('z', { metaKey: true }), 'mod+z', true)).toBe(true);
     expect(matchesHotkey(ev('z', { ctrlKey: true }), 'mod+z', false)).toBe(true);
     expect(matchesHotkey(ev('z', { ctrlKey: true, shiftKey: true }), 'mod+z', false)).toBe(false);
+    expect(matchesHotkey(ev('z', { metaKey: true }), '$mod+z', true)).toBe(true);
     expect(matchesHotkey(ev('F8'), 'F8')).toBe(true);
     expect(matchesHotkey(ev('z'), null)).toBe(false);
   });

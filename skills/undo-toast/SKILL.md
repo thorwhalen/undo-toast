@@ -12,7 +12,7 @@ Undo beats a confirmation dialog for anything reversible: people learn to click 
 ```bash
 npx undo-toast advise remove-item --message "“Intro” removed"
 npx undo-toast advise --reversal deferred --cost high      # an undo send
-npx undo-toast presets    # named actions; fields: what you can say; rules: what advise applies
+npx undo-toast presets    # named actions; fields / schema: what you can say; rules: what advise applies
 ```
 
 or in code: `advise('remove-item')`, `advise({ reversal: 'compensating', cost: 'high', count: 12 })`. The answer is JSON: `surface` (`toast | none | confirm | pending`), `durationMs` (`null` = until closed), `onExpire` / `onClose` (`commit | forget`), `pauseOn`, `coalesce`, labels, `hotkeys`, and `reasons` (each rule that fired, why, and its source). **Read the reasons**; quote them when you explain the choice. `warnings` are things to fix in the host (a trash for costly deletes).
@@ -33,7 +33,7 @@ If the surface is not `toast`, do what it says: `none` (the change is the feedba
 ## 2. Offer it
 
 ```tsx
-import { offerUndo } from 'undo-toast';
+import { offerUndo, offerFromHistory, offerFromMutationFeedback } from 'undo-toast';
 import { UndoToast, useBottomDock } from 'undo-toast/react';
 import 'undo-toast/styles.css';
 
@@ -48,9 +48,10 @@ offerUndo({ message: `“${item.title}” removed`, undo: () => insertSegment(it
 - **Deferred** (nothing sent yet): pass `commit` too. It runs once when the window ends, when the user closes the toast, when another offer replaces it, or on `pagehide`. `undo` then only restores the screen.
 - **A docked bottom bar** (a player, a tab bar): `useBottomDock(barRef)` on it. The toast then sits just above it, and at the very bottom when the bar is gone. Never hard-code an offset (`bottom: 11rem`): that is how a toast ends up a third of the way up the screen.
 - **A burst** (triage deletes): `key: 'remove'` and a message function `(n) => \`${n} segments removed\``; the advice for `frequency: 'frequent'` coalesces.
-- **An app with its own undo history** (acture-undo): `undo: () => history.undo()` and `context: { …, hasUndoStack: true }`, so Ctrl/Cmd+Z stays the app's.
-- **zodal undoable mutations**: in `onFeedback`, on `kind: 'scheduled'`, `offerUndo({ message, undo: () => feedback.undo(), advice: advise({ reversal: 'deferred' }, {}, { overrides: { durationMs: feedback.seconds * 1000, pauseOn: [] } }) })` — zodal owns that window's timer, so the toast cannot pause it; and on `committed` / `undone` nothing (the toast closes itself). Set zodal's `undoSeconds` from `advise({ reversal: 'deferred' }).durationMs / 1000`.
-- **Another renderer** (sonner, a design system's toast): read `createUndoOffers()`'s `subscribe` + `current()` view, and call `undo`, `close`, `hold`. Keep the standing rules below.
+- **An app with its own undo history** (acture-undo): `offerUndo(offerFromHistory(history, { message, context: 'remove-item' }))` after the dispatch. Undo rolls the history back one entry, `{ ok: false }` shows as a failure, and Ctrl/Cmd+Z stays the app's.
+- **zodal undoable mutations**: `onFeedback: (f) => { const o = offerFromMutationFeedback(f, { message: 'Row deleted' }); if (o) offerUndo(o); }`. zodal owns that window's timer, so the toast lasts as long and does not pause (until i2mint/zodal#146); a too-late undo (`false`) shows as a failure. Set zodal's `undoSeconds` from `advise({ reversal: 'deferred' }).durationMs / 1000`.
+- **Undo results**: `undo` fails when it throws, rejects, or returns `false` or `{ ok: false }` (change with `isFailure` on `createUndoOffers`). A failed undo stays on screen with *Try again*, and a deferred action is never committed once Undo was pressed.
+- **Another renderer** (sonner, a design system's toast): read `subscribe` + `current()`, call `undo`, `close`, `hold`, and call `bindPage(offers, { focus, contains })` once for the keys, the hidden-tab pause and `pagehide`. The labels (`undoLabel`, `closeLabel`, `failedText`, `retryLabel`) and `hotkeys` (tinykeys syntax, `$mod+z`) come in the advice. Keep the standing rules below.
 
 ## 3. The standing rules (the toast already follows them; keep them in any other renderer)
 

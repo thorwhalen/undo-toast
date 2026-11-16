@@ -35,7 +35,11 @@ export interface Advice {
   undoLabel: string;
   /** The close (×) button's accessible name. Never "Dismiss": it reads as dismissing the action. */
   closeLabel: string;
-  /** `focus`: the key that moves focus into the toast. `undo`: the key that undoes while it shows (`null` when the app's own undo history owns it). */
+  /** Shown before the message when an undo failed. */
+  failedText: string;
+  /** The undo button's label after a failure. */
+  retryLabel: string;
+  /** `focus`: the key that moves focus into the toast. `undo`: the key that undoes while it shows (`null` when the app's own undo history owns it). tinykeys syntax (`$mod` = Cmd on Apple, Ctrl elsewhere), so an acture-hotkeys keymap can take them as they are. */
   hotkeys: { focus: string | null; undo: string | null };
   /** Every rule that shaped this advice, in order. */
   reasons: Array<{ rule: string; why: string; source: string }>;
@@ -187,7 +191,9 @@ function baseAdvice(t: Timing): Advice {
     coalesce: false,
     undoLabel: 'Undo',
     closeLabel: 'Close notification',
-    hotkeys: { focus: 'F8', undo: 'mod+z' },
+    failedText: 'Could not undo.',
+    retryLabel: 'Try again',
+    hotkeys: { focus: 'F8', undo: '$mod+z' },
     reasons: [],
     warnings: [],
   };

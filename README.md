@@ -56,6 +56,23 @@ Presets: `remove-item`, `delete-work`, `bulk-delete`, `archive`, `clear-history`
 
 For a deferred action (an undo send), pass `commit`: it runs once when the window ends, the toast is closed or replaced, or the page is hidden for good.
 
+## From zodal or acture
+
+```ts
+import { offerFromHistory, offerFromMutationFeedback, offerUndo } from 'undo-toast';
+
+// acture-undo: after the dispatch
+offerUndo(offerFromHistory(history, { message: '“Intro” removed', context: 'remove-item' }));
+
+// zodal undoable mutations
+createMutations(provider, get, set, { mode: 'undoable', onFeedback: (f) => {
+  const offer = offerFromMutationFeedback(f, { message: 'Row deleted' });
+  if (offer) offerUndo(offer);
+} });
+```
+
+An `undo` fails when it throws, rejects, or returns `false` or `{ ok: false }`; the toast then stays with *Try again*, and a deferred action is never committed once Undo was pressed. Another renderer reads `subscribe` + `current()` and calls `bindPage(offers, { focus, contains })` for the keys, the hidden-tab pause and `pagehide`.
+
 ## Above a docked bar
 
 ```tsx
