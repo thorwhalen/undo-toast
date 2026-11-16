@@ -11,7 +11,7 @@
 
 import { parseArgs } from 'node:util';
 import { advise, RULES } from '../advise.js';
-import { CONTEXT_FIELDS, PRESETS, type ActionContext } from '../spec.js';
+import { CONTEXT_FIELDS, PRESETS, contextJsonSchema, type ActionContext } from '../spec.js';
 
 const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 const fields = Object.entries(CONTEXT_FIELDS) as Array<[string, { values: unknown; describe: string }]>;
@@ -21,6 +21,7 @@ const HELP = `undo-toast: decide how to offer undo for an action.
 
   undo-toast advise [preset] [flags]   the advice, with the reason for each part (JSON)
   undo-toast fields                    what you can say about an action
+  undo-toast schema                    the same, as a JSON Schema (for an MCP tool or a form)
   undo-toast presets                   named actions (remove-item, send, pay, ...)
   undo-toast rules                     the rules advise applies, in order
 
@@ -36,6 +37,7 @@ function main(argv: string[]): number {
     return 0;
   }
   if (command === 'fields') return out(CONTEXT_FIELDS), 0;
+  if (command === 'schema') return out(contextJsonSchema()), 0;
   if (command === 'presets') return out(PRESETS), 0;
   if (command === 'rules') return out(RULES.map(({ id, why, source, final }) => ({ id, why, source, final: !!final }))), 0;
   if (command !== 'advise') {

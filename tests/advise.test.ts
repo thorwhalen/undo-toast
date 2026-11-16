@@ -68,7 +68,7 @@ describe('advise', () => {
   });
 
   it("leaves Ctrl/Cmd+Z to the app's own undo history", () => {
-    expect(advise().hotkeys.undo).toBe('mod+z');
+    expect(advise().hotkeys.undo).toBe('$mod+z');
     expect(advise({ hasUndoStack: true }).hotkeys.undo).toBeNull();
   });
 

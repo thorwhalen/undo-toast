@@ -166,3 +166,80 @@ describe('createUndoOffers', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('createUndoOffers, after review', () => {
+  it('never commits a deferred action once Undo was pressed, even if the undo failed', async () => {
+    const commit = vi.fn();
+    const offers = createUndoOffers({ onError: () => {} });
+    offers.offer({ message: 'Sent', undo: () => { throw new Error('x'); }, commit, context: 'send' });
+    await offers.undo();
+    offers.close();
+    offers.flush();
+    offers.offer({ message: 'Sent', undo: () => false, commit, context: 'send' });
+    await offers.undo();
+    offers.offer({ message: 'Other', undo: () => {} });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('treats false and { ok: false } as a failed undo', async () => {
+    const offers = createUndoOffers({ onError: () => {} });
+    offers.offer({ message: 'A', undo: () => false });
+    expect(await offers.undo()).toBe(false);
+    expect(offers.current()?.status).toBe('failed');
+    offers.offer({ message: 'B', undo: () => ({ ok: false }) });
+    expect(await offers.undo()).toBe(false);
+    offers.offer({ message: 'C', undo: () => ({ ok: true }) });
+    expect(await offers.undo()).toBe(true);
+  });
+
+  it('carries holds over to a replacing offer (the pointer is still on the toast)', () => {
+    const clock = fakeTimers();
+    const offers = createUndoOffers({ timers: clock.timers });
+    offers.hold('hidden', true);
+    offers.offer({ message: 'A', undo: () => {}, context: { hasTrash: true } });
+    expect(offers.current()?.paused).toBe(true);
+    offers.hold('hidden', false);
+    offers.hold('hover', true);
+    offers.offer({ message: 'B', undo: () => {}, context: { hasTrash: true } });
+    clock.tick(60_000);
+    expect(offers.current()?.message).toBe('B');
+    offers.hold('hover', false);
+    clock.tick(10_000);
+    expect(offers.current()).toBeNull();
+  });
+
+  it('queues an offer that arrives during an undo, so the undo failure stays visible', async () => {
+    let fail!: (e: Error) => void;
+    const offers = createUndoOffers({ onError: () => {} });
+    offers.offer({ message: 'A', undo: () => new Promise((_, reject) => { fail = reject; }) });
+    const pending = offers.undo();
+    offers.offer({ message: 'B', undo: () => {} });
+    expect(offers.current()?.message).toBe('A');
+    fail(new Error('offline'));
+    expect(await pending).toBe(false);
+    expect(offers.current()?.status).toBe('failed');
+    offers.close();
+    expect(offers.current()?.message).toBe('B');
+  });
+
+  it('a retry after a partial failure does not undo the same entry twice', async () => {
+    const offers = createUndoOffers({ onError: () => {} });
+    const calls: number[] = [];
+    let failOne = true;
+    const advice = advise({ frequency: 'frequent', hasUndoStack: true });
+    offers.offer({ message: (n) => `${n}`, undo: () => { if (failOne) { failOne = false; throw new Error('x'); } calls.push(1); }, advice, key: 'k' });
+    offers.offer({ message: (n) => `${n}`, undo: () => void calls.push(2), advice, key: 'k' });
+    expect(await offers.undo()).toBe(false);
+    expect(await offers.undo()).toBe(true);
+    expect(calls).toEqual([2, 1]);
+  });
+
+  it('re-advises a merged burst with its count', () => {
+    const offers = createUndoOffers();
+    const context = { frequency: 'frequent', hasTrash: true } as const;
+    offers.offer({ message: 'x', undo: () => {}, context, key: 'k' });
+    expect(offers.current()?.advice.durationMs).toBe(10_000);
+    offers.offer({ message: 'x', undo: () => {}, context, key: 'k' });
+    expect(offers.current()?.advice.durationMs).toBe(15_000);
+  });
+});

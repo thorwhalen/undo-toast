@@ -156,3 +156,19 @@ export function presetContext(name: string, extra: ActionContext = {}): ActionCo
   if (!preset) throw new Error(`undo-toast: unknown preset "${name}"; the presets are ${Object.keys(PRESETS).join(', ')}.`);
   return { ...preset.context, ...extra };
 }
+
+/**
+ * The context as a JSON Schema (draft 2020-12), from the same table: for an MCP tool's input schema,
+ * a form, or any tool that wants the vocabulary as data.
+ */
+export function contextJsonSchema(): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const [key, spec] of Object.entries(CONTEXT_FIELDS) as Array<[string, FieldSpec<unknown>]>) {
+    const type = spec.values === 'number' ? { type: 'number', minimum: 0 }
+      : spec.values === 'string' ? { type: 'string' }
+      : spec.values.every((v) => typeof v === 'boolean') ? { type: 'boolean' }
+      : { type: 'string', enum: [...spec.values] };
+    properties[key] = { ...type, description: spec.describe, ...(spec.default === undefined ? {} : { default: spec.default }) };
+  }
+  return { $schema: 'https://json-schema.org/draft/2020-12/schema', title: 'ActionContext', type: 'object', properties, additionalProperties: false };
+}
