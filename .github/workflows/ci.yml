@@ -1,0 +1,63 @@
+# CI: typecheck, build and test on every push and PR. Publish to npm with trusted
+# publishing (OIDC, no token) when a push to main has the publish marker in its
+# commit SUBJECT (the first line; the body is ignored, so prose may mention it).
+# The npm trusted publisher for `undo-toast` points at this file: keep its name.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+  publish:
+    needs: test
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-npm]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Publish only when the commit subject carries the marker
+        id: gate
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          subject="$(printf '%s\n' "$MSG" | head -n1)"
+          case "$subject" in *"[publish-npm]"*) echo go=1 >> "$GITHUB_OUTPUT" ;; *) echo "::notice::marker only in the body; not publishing" ;; esac
+      - if: steps.gate.outputs.go == '1'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.go == '1'
+        uses: actions/setup-node@v4
+        with: { node-version: 24, registry-url: https://registry.npmjs.org, cache: npm }
+      - if: steps.gate.outputs.go == '1'
+        name: Ensure npm >= 11.5.1 (required for OIDC trusted publishing)
+        run: |
+          if ! node -e "const [a,b,c]=process.argv[1].split('.').map(Number);process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)" "$(npm --version)"; then
+            npm install -g npm@^11.5.1
+          fi
+      - if: steps.gate.outputs.go == '1'
+        run: npm ci
+      - if: steps.gate.outputs.go == '1'
+        name: Skip when this version is already on npm
+        id: v
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if ! npm view undo-toast name >/dev/null 2>&1; then echo "::warning::undo-toast is not on npm yet: the first version is published by hand, then CI takes over"; echo skip=1 >> "$GITHUB_OUTPUT"; exit 0; fi
+          if npm view "undo-toast@$v" version >/dev/null 2>&1; then echo "::warning::undo-toast@$v already published"; echo skip=1 >> "$GITHUB_OUTPUT"; fi
+      - if: steps.gate.outputs.go == '1' && steps.v.outputs.skip != '1'
+        run: npm publish --provenance --access public

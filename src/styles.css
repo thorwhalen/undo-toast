@@ -1,0 +1,118 @@
+/*
+ * undo-toast: bottom-left on a wide screen, full width at the bottom on a narrow one, always just
+ * above a docked bottom bar (--undo-toast-dock, set by useBottomDock) and the iPhone home indicator.
+ * Typography is inherited from the host; tune it with the custom properties below.
+ */
+.undo-toast-region {
+  --undo-toast-bg: #1f2328;
+  --undo-toast-fg: #f6f8fa;
+  --undo-toast-accent: #8ab4f8;
+  --undo-toast-gap: 24px;
+  --undo-toast-radius: 10px;
+  --undo-toast-max-width: 36rem;
+  --undo-toast-z: 1000;
+  --undo-toast-target: 36px;
+  position: fixed;
+  inset-inline-start: var(--undo-toast-gap);
+  bottom: calc(max(var(--undo-toast-dock, 0px), env(safe-area-inset-bottom, 0px)) + var(--undo-toast-gap));
+  z-index: var(--undo-toast-z);
+  max-width: min(var(--undo-toast-max-width), calc(100vw - 2 * var(--undo-toast-gap)));
+  pointer-events: none;
+}
+.undo-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.375rem 0.375rem 1rem;
+  border-radius: var(--undo-toast-radius);
+  background: var(--undo-toast-bg);
+  color: var(--undo-toast-fg);
+  font: inherit;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+  animation: undo-toast-in 160ms ease-out;
+}
+.undo-toast-message {
+  flex: 1;
+  min-width: 0;
+  padding-inline-end: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.undo-toast button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: calc(var(--undo-toast-radius) - 4px);
+  min-height: var(--undo-toast-target);
+  min-width: var(--undo-toast-target);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 80ms ease-out, background-color 80ms ease-out;
+}
+.undo-toast button:active {
+  transform: scale(0.96);
+}
+.undo-toast button:focus-visible {
+  outline: 2px solid var(--undo-toast-accent);
+  outline-offset: 1px;
+}
+.undo-toast-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  color: var(--undo-toast-accent) !important;
+  font-weight: 600 !important;
+}
+.undo-toast-undo[data-pending] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.undo-toast-hint {
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 400;
+  opacity: 0.7;
+}
+.undo-toast-close {
+  display: inline-grid;
+  place-items: center;
+  opacity: 0.8;
+}
+@media (hover: hover) and (pointer: fine) {
+  .undo-toast button:hover {
+    background: rgb(255 255 255 / 0.1);
+  }
+}
+/* Touch: 44 px targets, no keyboard hint. */
+@media (pointer: coarse) {
+  .undo-toast-region {
+    --undo-toast-target: 44px;
+  }
+  .undo-toast-hint {
+    display: none;
+  }
+}
+/* A narrow screen: full width, 16 px from each side. */
+@media (max-width: 600px) {
+  .undo-toast-region {
+    --undo-toast-gap: 16px;
+    inset-inline-end: var(--undo-toast-gap);
+    max-width: none;
+  }
+}
+@keyframes undo-toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .undo-toast {
+    animation: none;
+  }
+  .undo-toast button {
+    transition: none;
+  }
+}
