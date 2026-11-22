@@ -18,6 +18,8 @@ removeSegment(item);
 offerUndo({ message: `“${item.title}” removed`, undo: () => restore(item), context: 'remove-item' });
 ```
 
+**No React?** A static site with one vanilla `app.js` uses the same toast through plain DOM calls: `import { offerUndo } from 'undo-toast'; import { mountUndoToast } from 'undo-toast/dom'` and call `mountUndoToast()` once at startup (it returns an `unmount`). With no bundler at all, load `dist/undo-toast.global.js` (`undo-toast/global`) with a script tag: it defines `UndoToast.offerUndo` and `UndoToast.mountUndoToast`. Same markup, same `styles.css`, same behaviour as the React toast.
+
 The toast appears bottom-left on a wide screen and full width at the bottom on a phone. When it is the only way back it stays until Undo, Close or the next action (Material 3, WCAG 2.2.1); when undo is also reachable elsewhere (Ctrl/Cmd+Z, a trash) it leaves after 10 s, longer for long text or costly actions; a deferred action (an undo send) commits when its window ends. The timer pauses while the pointer, the focus or a finger is on the toast and while the tab is hidden. It has an **Undo** button and a **Close** (×) button, never takes focus, and announces itself politely.
 
 ## The decision
