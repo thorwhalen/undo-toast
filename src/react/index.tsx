@@ -6,21 +6,48 @@
  * where it came from. Import `undo-toast/styles.css` once.
  */
 
-import { useEffect, useId, useLayoutEffect, useRef, useSyncExternalStore, type MutableRefObject, type RefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useSyncExternalStore, type MutableRefObject, type ReactNode, type Ref, type RefObject } from 'react';
 import { getUndoOffers } from '../index.js';
 import { bindPage, isApple, type OfferView, type UndoOffers } from '../offers.js';
 
 export { matchesHotkey } from '../offers.js';
+
+/** What a host-drawn control is given (see `renderAction`). */
+export interface ActionRenderProps {
+  /** Which control: the Undo (or Try again) button, or the close (×) button. */
+  kind: 'undo' | 'close';
+  /** Its text (Undo / Try again) or, for close, its accessible name. */
+  label: string;
+  /** Run it: undo (or retry) the action, or close the toast. */
+  onActivate: () => void;
+  /** Attach to the Undo control: the focus hotkey moves focus to it. Unset for close. */
+  ref?: Ref<HTMLButtonElement>;
+  /** The message's element id, for `aria-describedby` on the Undo control. */
+  describedBy?: string;
+  /** An undo is running: show it pending and ignore presses. */
+  pending: boolean;
+  /** The keyboard hint for Undo (⌘Z / Ctrl+Z), when the advice binds one. */
+  hint: string | null;
+  /** The class the default control has, to keep the toast's layout. */
+  className: string;
+}
 
 export interface UndoToastProps {
   /** The offer store to show. Default: the page's shared one (`getUndoOffers()`). */
   offers?: UndoOffers;
   /** The region's accessible name. */
   regionLabel?: string;
+  /**
+   * Draw the Undo and close controls with the host's own pressable component (large touch targets,
+   * a tap guard, a lockout after a press: an app for users with hand tremor needs all three). The
+   * toast keeps the policy: timing, pauses, hotkeys, coalescing, failure and Try again. Return
+   * `undefined` to keep the default control for a `kind`.
+   */
+  renderAction?: (props: ActionRenderProps) => ReactNode | undefined;
 }
 
 /** The toast. Render it once, near the root, always (its live region must exist before a message). */
-export function UndoToast({ offers = getUndoOffers(), regionLabel = 'Notifications' }: UndoToastProps) {
+export function UndoToast({ offers = getUndoOffers(), regionLabel = 'Notifications', renderAction }: UndoToastProps) {
   const view = useSyncExternalStore(offers.subscribe, offers.current, () => null);
   const toastRef = useRef<HTMLDivElement | null>(null);
   const undoRef = useRef<HTMLButtonElement | null>(null);
@@ -43,7 +70,7 @@ export function UndoToast({ offers = getUndoOffers(), regionLabel = 'Notificatio
   return (
     <section className="undo-toast-region" aria-label={regionLabel}>
       <div role="status" aria-live="polite" aria-atomic="true">
-        {view && <Toast key={view.id} view={view} offers={offers} toastRef={toastRef} undoRef={undoRef} returnFocus={returnFocus} />}
+        {view && <Toast key={view.id} view={view} offers={offers} toastRef={toastRef} undoRef={undoRef} returnFocus={returnFocus} renderAction={renderAction} />}
       </div>
     </section>
   );
@@ -55,10 +82,11 @@ interface ToastProps {
   toastRef: MutableRefObject<HTMLDivElement | null>;
   undoRef: MutableRefObject<HTMLButtonElement | null>;
   returnFocus: MutableRefObject<HTMLElement | null>;
+  renderAction?: UndoToastProps['renderAction'];
 }
 
 /** One offer, keyed by its id, so a replacing offer is announced and animated afresh. */
-function Toast({ view, offers, toastRef, undoRef, returnFocus }: ToastProps) {
+function Toast({ view, offers, toastRef, undoRef, returnFocus, renderAction }: ToastProps) {
   const messageId = useId();
   const own = useRef<HTMLDivElement | null>(null);
 
@@ -105,28 +133,50 @@ function Toast({ view, offers, toastRef, undoRef, returnFocus }: ToastProps) {
       <span id={messageId} className="undo-toast-message">
         {failed ? `${advice.failedText} ${view.message}` : view.message}
       </span>
-      <button
-        ref={undoRef}
-        type="button"
-        className="undo-toast-undo"
-        aria-describedby={messageId}
-        aria-disabled={undoing || undefined}
-        aria-busy={undoing || undefined}
-        data-pending={undoing || undefined}
-        onClick={() => void offers.undo()}
-      >
-        {failed ? advice.retryLabel : advice.undoLabel}
-        {hint && !failed && (
-          <kbd className="undo-toast-hint" aria-hidden="true">
-            {hint}
-          </kbd>
-        )}
-      </button>
-      <button type="button" className="undo-toast-close" aria-label={advice.closeLabel} onClick={() => offers.close()}>
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-        </svg>
-      </button>
+      {renderAction?.({
+        kind: 'undo',
+        label: failed ? advice.retryLabel : advice.undoLabel,
+        onActivate: () => {
+          if (!undoing) void offers.undo();
+        },
+        ref: undoRef,
+        describedBy: messageId,
+        pending: undoing,
+        hint: failed ? null : hint,
+        className: 'undo-toast-undo',
+      }) ?? (
+        <button
+          ref={undoRef}
+          type="button"
+          className="undo-toast-undo"
+          aria-describedby={messageId}
+          aria-disabled={undoing || undefined}
+          aria-busy={undoing || undefined}
+          data-pending={undoing || undefined}
+          onClick={() => void offers.undo()}
+        >
+          {failed ? advice.retryLabel : advice.undoLabel}
+          {hint && !failed && (
+            <kbd className="undo-toast-hint" aria-hidden="true">
+              {hint}
+            </kbd>
+          )}
+        </button>
+      )}
+      {renderAction?.({
+        kind: 'close',
+        label: advice.closeLabel,
+        onActivate: () => offers.close(),
+        pending: false,
+        hint: null,
+        className: 'undo-toast-close',
+      }) ?? (
+        <button type="button" className="undo-toast-close" aria-label={advice.closeLabel} onClick={() => offers.close()}>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

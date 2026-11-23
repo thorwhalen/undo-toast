@@ -1,6 +1,6 @@
 {
   "name": "undo-toast",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Agent-first undo toasts: a decision function that says whether and how to offer undo for an action (duration, labels, keys, what closing means, and why), a framework-free offer store, and a React toast that follows the standard.",
   "author": "Thor Whalen",
   "license": "MIT",
