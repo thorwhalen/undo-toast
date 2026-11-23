@@ -87,22 +87,27 @@ const words = (s: string | undefined): number => (s ? s.trim().split(/\s+/).filt
 const isCostly = (c: ResolvedContext): boolean => c.cost === 'high' || c.count > 1;
 const hasFallback = (c: ResolvedContext): boolean => c.hasUndoStack || c.hasTrash;
 const R = 'docs/research/undo-toast-standard.md';
-const V = 'the views-and-selection research (2026-11-23), §4 "Confirmation, undo and reversibility for bulk operations"';
+const V = 'docs/research/bulk-confirm.md';
 
-/** The confirm button's label: the verb, with the count put in (`{count}`) or appended when above 1. */
+/**
+ * The confirm button's label from the context's `verb`: `{count}` is the count, `{one|other}` picks
+ * the singular when the count is 1 ("Move {count} {item|items} to Trash"); a verb without `{count}`
+ * gets " (12)" appended above 1. Pass `label` to `advise` to replace it (translations, say).
+ */
 export function confirmLabel(c: Pick<ResolvedContext, 'count' | 'verb'>): string | null {
   if (!c.verb) return null;
-  if (c.verb.includes('{count}')) return c.verb.replaceAll('{count}', String(c.count));
-  return c.count > 1 ? `${c.verb} (${c.count})` : c.verb;
+  const text = c.verb.replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (_m, one: string, other: string) => (c.count === 1 ? one : other));
+  if (text.includes('{count}')) return text.replaceAll('{count}', String(c.count));
+  return c.count > 1 ? `${text} (${c.count})` : text;
 }
-const confirm = (c: ResolvedContext): Partial<Advice> => ({ surface: 'confirm', durationMs: null, confirmLabel: confirmLabel(c) });
+const confirm = (): Partial<Advice> => ({ surface: 'confirm', durationMs: null });
 
 /** The rules, in the order they apply. Hosts pass `rules` to replace them, or `[...RULES, mine]` to extend. */
 export const RULES: readonly Rule[] = [
   {
     id: 'irreversible',
     when: (c) => c.reversal === 'none',
-    then: (_a, c, t) => ({ ...confirm(c), typeToConfirm: c.count > t.confirmTypeAbove }),
+    then: (_a, c, t) => ({ ...confirm(), typeToConfirm: c.count > t.confirmTypeAbove }),
     why: 'Nothing can take it back, so an Undo button would lie: ask first, on a button that names the verb and the count ("Pay €12", "Delete 37 tracks permanently", not "OK"), with type-to-confirm above `timing.confirmTypeAbove` items; then show it pending.',
     source: `${R} §6; ${V}`,
     final: true,
@@ -110,16 +115,16 @@ export const RULES: readonly Rule[] = [
   {
     id: 'bulk-confirm',
     when: (c) => c.reversal === 'manual' && c.count > 1,
-    then: (_a, c) => confirm(c),
-    why: 'A bulk action that no single Undo takes back (recoverable only by hand, item by item: from the playlist, from a trash without a one-step restore) asks first, with the count in the verb ("Move 12 items to Trash"). Recoverable is not reversible. To earn an undo toast instead, run the whole selection as one undo step (one history entry, one restore) and say reversal: \'compensating\'.',
+    then: () => confirm(),
+    why: 'A bulk action that no single Undo takes back (recoverable only by hand, item by item: from the playlist, from a trash without a one-step restore) asks first, with the count in the verb ("Move 12 items to Trash"), then shows it pending. Recoverable is not reversible. A plain confirmation, not a typed one: the items can still be recovered. To earn an undo toast instead, run the whole selection as one undo step (one history entry, one restore) and say reversal: \'compensating\'.',
     source: V,
     final: true,
   },
   {
     id: 'manual',
     when: (c) => c.reversal === 'manual',
-    then: (_a, c) => (c.cost === 'high' ? confirm(c) : { surface: 'none', durationMs: null }),
-    why: 'One item, recoverable only by hand: there is no Undo to offer, so a toast would have nothing to do. A costly one asks first; a cheap one is acknowledged in place. Make it compensating (an undo that restores it) to get an undo toast.',
+    then: (_a, c) => (c.cost === 'low' && c.resultStaysInView ? { surface: 'none', durationMs: null } : confirm()),
+    why: 'One item, recoverable only by hand: there is no Undo to offer, so a toast would have nothing to do. If the change stays in view, cheap, it is its own feedback; otherwise ask first, so the user knows what happened and where. Make it compensating (an undo that restores it) to get an undo toast instead.',
     source: V,
     final: true,
   },
@@ -246,6 +251,8 @@ export interface AdviseOptions {
   timing?: Partial<Timing>;
   /** Fields forced last, whatever the rules said (recorded as the `override` reason). */
   overrides?: Partial<Omit<Advice, 'reasons' | 'warnings'>>;
+  /** Builds `confirmLabel` whenever the surface is `confirm` (default {@link confirmLabel}): for translations or plural rules. */
+  label?: (c: ResolvedContext) => string | null;
 }
 
 /**
@@ -258,7 +265,7 @@ export interface AdviseOptions {
 export function advise(
   action: PresetName | ActionContext = {},
   extra: ActionContext = {},
-  { rules = RULES, timing, overrides }: AdviseOptions = {},
+  { rules = RULES, timing, overrides, label = confirmLabel }: AdviseOptions = {},
 ): Advice {
   const t: Timing = { ...TIMING, ...timing };
   const context = resolveContext(typeof action === 'string' ? presetContext(action, extra) : { ...action, ...extra });
@@ -273,5 +280,6 @@ export function advise(
     advice = { ...advice, ...overrides };
     advice.reasons = [...advice.reasons, { rule: 'override', why: `Set by the host: ${Object.keys(overrides).join(', ')}.`, source: 'caller' }];
   }
+  if (advice.surface === 'confirm' && advice.confirmLabel === null) advice.confirmLabel = label(context);
   return advice;
 }

@@ -27,7 +27,7 @@ What to tell it (run `npx undo-toast fields` for the full table):
 | `frequency`, `count` | A burst of the same action merges into one toast; several items lengthen the window. |
 | `hasUndoStack`, `hasTrash` | Does the app keep an undo history (Ctrl/Cmd+Z) or a trash? Then the toast is a shortcut, not the only way back. |
 | `keepNotices` | The user's setting "keep notices until I close them" (WCAG 2.2.1). |
-| `verb` | What the confirm button should say if it comes to that: `'Move {count} items to Trash'` (`{count}` is filled in). |
+| `verb` | What the confirm button should say if it comes to that: `'Move {count} {item|items} to Trash'` (`{count}` is filled in). |
 
 If the surface is not `toast`, do what it says: `none` (the change is the feedback; no toast), `confirm` (a dialog whose button is `confirmLabel`, the verb with the count, "Move 12 items to Trash", never "OK"; the button disabled until typed when `typeToConfirm`; then a pending button), `pending` (the control pending until the server answers; a failure toast with Retry that stays).
 
@@ -71,4 +71,4 @@ offerUndo({ message: `“${item.title}” removed`, undo: () => insertSegment(it
 
 ## Sources
 
-The research behind every rule, with references: `docs/research/undo-toast-standard.md` in this package (`node_modules/undo-toast/docs/…`); for bulk actions, the views-and-selection research report (2026-11-23), §4 "Confirmation, undo and reversibility for bulk operations". The decision record: `docs/adr/0001-undo-toast-package.md`.
+The research behind every rule, with references: `docs/research/undo-toast-standard.md` in this package (`node_modules/undo-toast/docs/…`); for bulk actions, `docs/research/bulk-confirm.md`. The decision record: `docs/adr/0001-undo-toast-package.md`.

@@ -74,7 +74,7 @@ export const CONTEXT_FIELDS = {
     values: 'string',
     default: undefined,
     describe:
-      "The action's verb phrase, for the confirmation button when the advice is to confirm: 'Move {count} items to Trash', 'Add {count} songs to playlist'. `{count}` is replaced by the count; without it, a count above 1 is appended as ' (12)'.",
+      "The action's verb phrase, for the confirmation button when the advice is to confirm: 'Move {count} {item|items} to Trash', 'Add {count} {song|songs} to playlist'. `{count}` is the count and `{one|other}` picks the singular at 1; without `{count}`, a count above 1 is appended as ' (12)'.",
   },
 } as const satisfies Record<string, FieldSpec<unknown>>;
 
@@ -108,7 +108,7 @@ export const PRESETS = {
   'bulk-move-to-trash': {
     describe:
       "Move a selection to the Trash (pass count). A timed toast when one Undo restores the whole selection; pass reversal: 'manual' when the Trash can only restore item by item, and it asks first.",
-    context: { reversal: 'compensating', cost: 'high', count: 2, hasTrash: true, verb: 'Move {count} items to Trash' },
+    context: { reversal: 'compensating', cost: 'high', count: 2, hasTrash: true, verb: 'Move {count} {item|items} to Trash' },
   },
   'add-to-collection': {
     describe:
@@ -117,7 +117,7 @@ export const PRESETS = {
   },
   'delete-permanently': {
     describe: 'Delete from the Trash for good (pass count). Cannot be taken back: always confirms.',
-    context: { reversal: 'none', cost: 'high', verb: 'Delete permanently' },
+    context: { reversal: 'none', cost: 'high', verb: 'Delete {count} {item|items} permanently' },
   },
   'empty-trash': {
     describe: 'Empty the Trash (pass count). Cannot be taken back: always confirms.',

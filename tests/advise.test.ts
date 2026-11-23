@@ -106,6 +106,7 @@ describe('bulk actions: confirm unless one Undo takes it all back', () => {
     expect(a.durationMs).toBeNull();
     expect(rules(a)).toEqual(['bulk-confirm']);
     expect(advise('bulk-move-to-trash', { reversal: 'manual', count: 12 }).confirmLabel).toBe('Move 12 items to Trash');
+    expect(advise({ reversal: 'manual', count: 500 }).typeToConfirm).toBe(false); // recoverable: a plain confirmation
     expect(advise({ reversal: 'manual', count: 30, verb: 'Add to playlist' }).confirmLabel).toBe('Add to playlist (30)');
     expect(advise({ reversal: 'manual', count: 12 }).confirmLabel).toBeNull();
   });
@@ -120,9 +121,17 @@ describe('bulk actions: confirm unless one Undo takes it all back', () => {
     expect(b.durationMs).toBe(TIMING.highCostMs);
   });
 
-  it('handles one manual item: confirm when costly, acknowledge in place when cheap', () => {
+  it('handles one manual item: in place only when cheap and in view, otherwise confirm', () => {
     expect(advise({ reversal: 'manual', cost: 'high', verb: 'Remove' })).toMatchObject({ surface: 'confirm', confirmLabel: 'Remove' });
-    expect(advise({ reversal: 'manual' }).surface).toBe('none');
+    expect(advise({ reversal: 'manual', resultStaysInView: true }).surface).toBe('none');
+    expect(advise('add-to-collection', { reversal: 'manual' }).surface).toBe('confirm');
+  });
+
+  it('words the label for one item, and lets the host replace it or force a confirm', () => {
+    expect(advise('bulk-move-to-trash', { reversal: 'manual', count: 1 }).confirmLabel).toBe('Move 1 item to Trash');
+    expect(advise('delete-permanently', { count: 40 }).confirmLabel).toBe('Delete 40 items permanently');
+    expect(advise('remove-item', { verb: 'Remove' }, { overrides: { surface: 'confirm' } }).confirmLabel).toBe('Remove');
+    expect(advise('pay', { count: 2 }, { label: (c) => `Payer (${c.count})` }).confirmLabel).toBe('Payer (2)');
   });
 
   it('always confirms Delete permanently and Empty Trash, typed above the threshold', () => {
