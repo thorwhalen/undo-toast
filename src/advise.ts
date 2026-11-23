@@ -19,6 +19,10 @@ export type PauseReason = 'hover' | 'focus' | 'touch' | 'hidden';
 export interface Advice {
   /** `toast`: an undo toast. `none`: the changed thing is its own feedback. `confirm`: ask first, naming the verb. `pending`: show the control pending, report failure with Retry. */
   surface: Surface;
+  /** When `surface` is `confirm`: the confirm button's label, the verb with the count ("Move 12 items to Trash"), from the context's `verb`; `null` when no verb was given (then write one: never "OK" or "Yes"). */
+  confirmLabel: string | null;
+  /** When `surface` is `confirm`: keep the confirm button disabled until the user types the object's name or the count (an irreversible action over more than `timing.confirmTypeAbove` items). */
+  typeToConfirm: boolean;
   /** How long the toast stays, in ms; `null` = until the user closes it. Meaningless unless `surface` is `toast`. */
   durationMs: number | null;
   /** After a pause, the timer resumes with at least this much left. */
@@ -63,6 +67,8 @@ export const TIMING = {
   maxMs: 20_000,
   /** After a pause, at least this much time is left. */
   resumeMinMs: 4_000,
+  /** An irreversible action over more items than this asks the user to type to confirm. An estimate: no design system gives a number, so make it a setting. */
+  confirmTypeAbove: 10,
 } as const;
 export type Timing = { -readonly [K in keyof typeof TIMING]: number };
 
@@ -81,15 +87,45 @@ const words = (s: string | undefined): number => (s ? s.trim().split(/\s+/).filt
 const isCostly = (c: ResolvedContext): boolean => c.cost === 'high' || c.count > 1;
 const hasFallback = (c: ResolvedContext): boolean => c.hasUndoStack || c.hasTrash;
 const R = 'docs/research/undo-toast-standard.md';
+const V = 'docs/research/bulk-confirm.md';
+
+/**
+ * The confirm button's label from the context's `verb`: `{count}` is the count, `{one|other}` picks
+ * the singular when the count is 1 ("Move {count} {item|items} to Trash"); a verb without `{count}`
+ * gets " (12)" appended above 1. Pass `label` to `advise` to replace it (translations, say).
+ */
+export function confirmLabel(c: Pick<ResolvedContext, 'count' | 'verb'>): string | null {
+  if (!c.verb) return null;
+  const text = c.verb.replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (_m, one: string, other: string) => (c.count === 1 ? one : other));
+  if (text.includes('{count}')) return text.replaceAll('{count}', String(c.count));
+  return c.count > 1 ? `${text} (${c.count})` : text;
+}
+const confirm = (): Partial<Advice> => ({ surface: 'confirm', durationMs: null });
 
 /** The rules, in the order they apply. Hosts pass `rules` to replace them, or `[...RULES, mine]` to extend. */
 export const RULES: readonly Rule[] = [
   {
     id: 'irreversible',
     when: (c) => c.reversal === 'none',
-    then: () => ({ surface: 'confirm', durationMs: null }),
-    why: 'Nothing can take it back, so an Undo button would lie: ask first, on a button that names the verb ("Pay €12", not "OK"), or type-to-confirm when the stakes are high; then show it pending.',
-    source: `${R} §6`,
+    then: (_a, c, t) => ({ ...confirm(), typeToConfirm: c.count > t.confirmTypeAbove }),
+    why: 'Nothing can take it back, so an Undo button would lie: ask first, on a button that names the verb and the count ("Pay €12", "Delete 37 tracks permanently", not "OK"), with type-to-confirm above `timing.confirmTypeAbove` items; then show it pending.',
+    source: `${R} §6; ${V}`,
+    final: true,
+  },
+  {
+    id: 'bulk-confirm',
+    when: (c) => c.reversal === 'manual' && c.count > 1,
+    then: () => confirm(),
+    why: 'A bulk action that no single Undo takes back (recoverable only by hand, item by item: from the playlist, from a trash without a one-step restore) asks first, with the count in the verb ("Move 12 items to Trash"), then shows it pending. Recoverable is not reversible. A plain confirmation, not a typed one: the items can still be recovered. To earn an undo toast instead, run the whole selection as one undo step (one history entry, one restore) and say reversal: \'compensating\'.',
+    source: V,
+    final: true,
+  },
+  {
+    id: 'manual',
+    when: (c) => c.reversal === 'manual',
+    then: (_a, c) => (c.cost === 'low' && c.resultStaysInView ? { surface: 'none', durationMs: null } : confirm()),
+    why: 'One item, recoverable only by hand: there is no Undo to offer, so a toast would have nothing to do. If the change stays in view, cheap, it is its own feedback; otherwise ask first, so the user knows what happened and where. Make it compensating (an undo that restores it) to get an undo toast instead.',
+    source: V,
     final: true,
   },
   {
@@ -99,6 +135,13 @@ export const RULES: readonly Rule[] = [
     why: 'An action that often fails, or whose result the server computes, must not look done: keep the control pending until it is, and report a failure with Retry in a notice that stays until closed.',
     source: `${R} §6`,
     final: true,
+  },
+  {
+    id: 'bulk-one-step-undo',
+    when: (c) => c.count > 1 && (c.reversal === 'compensating' || c.reversal === 'deferred'),
+    then: () => ({}),
+    why: 'A bulk action gets an undo toast, not a confirmation, because one Undo takes the whole operation back in place; a dialog would teach people to click through it. If taking it back meant finding the items one by one, it would be reversal: \'manual\' and would ask first (the bulk-confirm rule).',
+    source: `${V}; ${R} §6`,
   },
   {
     id: 'result-in-view',
@@ -183,6 +226,8 @@ export const RULES: readonly Rule[] = [
 function baseAdvice(t: Timing): Advice {
   return {
     surface: 'toast',
+    confirmLabel: null,
+    typeToConfirm: false,
     durationMs: t.actionMs,
     resumeMinMs: t.resumeMinMs,
     pauseOn: ['hover', 'focus', 'touch', 'hidden'],
@@ -206,6 +251,8 @@ export interface AdviseOptions {
   timing?: Partial<Timing>;
   /** Fields forced last, whatever the rules said (recorded as the `override` reason). */
   overrides?: Partial<Omit<Advice, 'reasons' | 'warnings'>>;
+  /** Builds `confirmLabel` whenever the surface is `confirm` (default {@link confirmLabel}): for translations or plural rules. */
+  label?: (c: ResolvedContext) => string | null;
 }
 
 /**
@@ -218,7 +265,7 @@ export interface AdviseOptions {
 export function advise(
   action: PresetName | ActionContext = {},
   extra: ActionContext = {},
-  { rules = RULES, timing, overrides }: AdviseOptions = {},
+  { rules = RULES, timing, overrides, label = confirmLabel }: AdviseOptions = {},
 ): Advice {
   const t: Timing = { ...TIMING, ...timing };
   const context = resolveContext(typeof action === 'string' ? presetContext(action, extra) : { ...action, ...extra });
@@ -233,5 +280,6 @@ export function advise(
     advice = { ...advice, ...overrides };
     advice.reasons = [...advice.reasons, { rule: 'override', why: `Set by the host: ${Object.keys(overrides).join(', ')}.`, source: 'caller' }];
   }
+  if (advice.surface === 'confirm' && advice.confirmLabel === null) advice.confirmLabel = label(context);
   return advice;
 }

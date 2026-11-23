@@ -21,14 +21,19 @@ What to tell it (run `npx undo-toast fields` for the full table):
 
 | Field | Ask yourself |
 |---|---|
-| `reversal` | Is it already done, with undo applying the inverse (`compensating`)? Held back until the window ends (`deferred`: undo send, a held key)? Impossible to take back (`none`)? |
+| `reversal` | Is it already done, with one Undo applying the inverse of the whole thing, in place (`compensating`)? Held back until the window ends (`deferred`: undo send, a held key)? Recoverable only by hand, item by item, somewhere else (`manual`: editing the playlist, restoring one by one from a trash)? Impossible to take back (`none`)? |
 | `cost` | Would a mistake lose the user's work, many items, or something hard to recreate (`high`)? |
 | `resultStaysInView` | Does the changed thing stay on screen showing its new state (a checkbox, a rename)? Then it is its own feedback. |
 | `frequency`, `count` | A burst of the same action merges into one toast; several items lengthen the window. |
 | `hasUndoStack`, `hasTrash` | Does the app keep an undo history (Ctrl/Cmd+Z) or a trash? Then the toast is a shortcut, not the only way back. |
 | `keepNotices` | The user's setting "keep notices until I close them" (WCAG 2.2.1). |
+| `verb` | What the confirm button should say if it comes to that: `'Move {count} {item|items} to Trash'` (`{count}` is filled in). |
 
-If the surface is not `toast`, do what it says: `none` (the change is the feedback; no toast), `confirm` (a dialog whose button names the verb, "Pay €12", then a pending button), `pending` (the control pending until the server answers; a failure toast with Retry that stays).
+If the surface is not `toast`, do what it says: `none` (the change is the feedback; no toast), `confirm` (a dialog whose button is `confirmLabel`, the verb with the count, "Move 12 items to Trash", never "OK"; the button disabled until typed when `typeToConfirm`; then a pending button), `pending` (the control pending until the server answers; a failure toast with Retry that stays).
+
+### Bulk actions on a selection
+
+The default: **ask for confirmation, with the count, unless one Undo takes the whole operation back, in place.** "Recoverable" is not enough: if taking it back means going to the playlist or the Trash and finding the items one by one, it is `reversal: 'manual'` and `advise` returns `confirm` (rule `bulk-confirm`). Earn the toast instead by running the whole selection as **one undo step** (one acture-undo transaction / history entry, one Restore for the batch), then say `compensating`; the reason `bulk-one-step-undo` explains the choice in words you can quote. Never show both a confirmation and an undo toast for one action. Presets: `move-to-trash`, `bulk-move-to-trash`, `add-to-collection`, and `delete-permanently` / `empty-trash` (always confirm; typed above `timing.confirmTypeAbove`, 10 by default, an estimate to expose as a setting). Take the count and the payload from the same selection object.
 
 ## 2. Offer it
 
@@ -66,4 +71,4 @@ offerUndo({ message: `“${item.title}” removed`, undo: () => insertSegment(it
 
 ## Sources
 
-The research behind every rule, with references: `docs/research/undo-toast-standard.md` in this package (`node_modules/undo-toast/docs/…`). The decision record: `docs/adr/0001-undo-toast-package.md`.
+The research behind every rule, with references: `docs/research/undo-toast-standard.md` in this package (`node_modules/undo-toast/docs/…`); for bulk actions, `docs/research/bulk-confirm.md`. The decision record: `docs/adr/0001-undo-toast-package.md`.

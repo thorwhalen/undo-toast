@@ -14,10 +14,10 @@ interface FieldSpec<V> {
 
 export const CONTEXT_FIELDS = {
   reversal: {
-    values: ['deferred', 'compensating', 'none'] as const,
+    values: ['deferred', 'compensating', 'manual', 'none'] as const,
     default: 'compensating',
     describe:
-      "How the action can be taken back. 'deferred': nothing is committed until the undo window ends (Gmail's undo send, zodal's undoable mutation). 'compensating': it is already done, and undo applies the inverse (re-insert, restore). 'none': it cannot be taken back (a payment, an email already delivered).",
+      "How the action can be taken back. 'deferred': nothing is committed until the undo window ends (Gmail's undo send, zodal's undoable mutation). 'compensating': it is already done, and one Undo applies the inverse of the whole operation, in place (re-insert, restore; for a bulk action, one undo step for the whole selection). 'manual': recoverable, but only by hand, item by item, somewhere else (finding 30 songs in a playlist to remove them, restoring 12 items one by one from a trash without a one-step restore); recoverable is not reversible. 'none': it cannot be taken back (a payment, an email already delivered, Delete permanently, Empty Trash).",
   },
   cost: {
     values: ['low', 'high'] as const,
@@ -70,6 +70,12 @@ export const CONTEXT_FIELDS = {
     default: undefined,
     describe: 'The toast text, if known: longer text stays longer (reading time).',
   },
+  verb: {
+    values: 'string',
+    default: undefined,
+    describe:
+      "The action's verb phrase, for the confirmation button when the advice is to confirm: 'Move {count} {item|items} to Trash', 'Add {count} {song|songs} to playlist'. `{count}` is the count and `{one|other}` picks the singular at 1; without `{count}`, a count above 1 is appended as ' (12)'.",
+  },
 } as const satisfies Record<string, FieldSpec<unknown>>;
 
 type Spec = typeof CONTEXT_FIELDS;
@@ -77,8 +83,9 @@ type ValueOf<F> = F extends { values: readonly (infer V)[] } ? V : F extends { v
 
 /** What is known about the action to offer undo for. Every field is optional (see the defaults). */
 export type ActionContext = { -readonly [K in keyof Spec]?: ValueOf<Spec[K]> };
-/** {@link ActionContext} with every default applied (except `message`). */
-export type ResolvedContext = { -readonly [K in keyof Spec]-?: ValueOf<Spec[K]> } & { message?: string };
+type Optional = 'message' | 'verb';
+/** {@link ActionContext} with every default applied (except `message` and `verb`, which have none). */
+export type ResolvedContext = { -readonly [K in Exclude<keyof Spec, Optional>]-?: ValueOf<Spec[K]> } & { message?: string; verb?: string };
 
 /** Common actions, named, so `advise('remove-item')` is enough for the usual case. */
 export const PRESETS = {
@@ -93,6 +100,28 @@ export const PRESETS = {
   'bulk-delete': {
     describe: 'Delete several items at once (pass count).',
     context: { reversal: 'compensating', cost: 'high', count: 2 },
+  },
+  'move-to-trash': {
+    describe: 'Move one item to the Trash (soft delete); undo restores it, and so does the Trash after the toast leaves.',
+    context: { reversal: 'compensating', cost: 'low', hasTrash: true, verb: 'Move to Trash' },
+  },
+  'bulk-move-to-trash': {
+    describe:
+      "Move a selection to the Trash (pass count). A timed toast when one Undo restores the whole selection; pass reversal: 'manual' when the Trash can only restore item by item, and it asks first.",
+    context: { reversal: 'compensating', cost: 'high', count: 2, hasTrash: true, verb: 'Move {count} {item|items} to Trash' },
+  },
+  'add-to-collection': {
+    describe:
+      "Add items to a playlist, folder or collection that is not in view (pass count for a selection). One Undo takes the addition back; pass reversal: 'manual' when the only way back is editing the collection by hand, and a bulk add asks first.",
+    context: { reversal: 'compensating', cost: 'low', verb: 'Add to collection' },
+  },
+  'delete-permanently': {
+    describe: 'Delete from the Trash for good (pass count). Cannot be taken back: always confirms.',
+    context: { reversal: 'none', cost: 'high', verb: 'Delete {count} {item|items} permanently' },
+  },
+  'empty-trash': {
+    describe: 'Empty the Trash (pass count). Cannot be taken back: always confirms.',
+    context: { reversal: 'none', cost: 'high', verb: 'Empty Trash' },
   },
   archive: {
     describe: 'Archive, hide, or move out of the current view.',

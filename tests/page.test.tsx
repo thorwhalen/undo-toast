@@ -105,7 +105,7 @@ describe('adapters', () => {
 
   it('exports the context as a JSON Schema', () => {
     const schema = contextJsonSchema() as { properties: Record<string, { enum?: unknown[]; type: string }> };
-    expect(schema.properties.reversal?.enum).toEqual(['deferred', 'compensating', 'none']);
+    expect(schema.properties.reversal?.enum).toEqual(['deferred', 'compensating', 'manual', 'none']);
     expect(schema.properties.hasTrash?.type).toBe('boolean');
   });
 });
