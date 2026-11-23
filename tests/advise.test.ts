@@ -98,3 +98,46 @@ describe('advise', () => {
     expect(() => advise('nope' as never)).toThrow(/presets are remove-item/);
   });
 });
+
+describe('bulk actions: confirm unless one Undo takes it all back', () => {
+  it("asks first, with the count in the verb, when the bulk action is only recoverable by hand (reversal 'manual')", () => {
+    const a = advise({ reversal: 'manual', count: 12 });
+    expect(a.surface).toBe('confirm');
+    expect(a.durationMs).toBeNull();
+    expect(rules(a)).toEqual(['bulk-confirm']);
+    expect(advise('bulk-move-to-trash', { reversal: 'manual', count: 12 }).confirmLabel).toBe('Move 12 items to Trash');
+    expect(advise({ reversal: 'manual', count: 30, verb: 'Add to playlist' }).confirmLabel).toBe('Add to playlist (30)');
+    expect(advise({ reversal: 'manual', count: 12 }).confirmLabel).toBeNull();
+  });
+
+  it('gives a timed toast, and says why, when one Undo takes the whole bulk action back', () => {
+    const a = advise('bulk-delete', { count: 12, hasTrash: true });
+    expect(a.surface).toBe('toast');
+    expect(a.durationMs).toBe(TIMING.highCostMs);
+    expect(rules(a)).toContain('bulk-one-step-undo');
+    const b = advise('bulk-move-to-trash', { count: 12 });
+    expect(b.surface).toBe('toast');
+    expect(b.durationMs).toBe(TIMING.highCostMs);
+  });
+
+  it('handles one manual item: confirm when costly, acknowledge in place when cheap', () => {
+    expect(advise({ reversal: 'manual', cost: 'high', verb: 'Remove' })).toMatchObject({ surface: 'confirm', confirmLabel: 'Remove' });
+    expect(advise({ reversal: 'manual' }).surface).toBe('none');
+  });
+
+  it('always confirms Delete permanently and Empty Trash, typed above the threshold', () => {
+    const few = advise('delete-permanently', { count: 3, verb: 'Delete {count} tracks permanently' });
+    expect(few).toMatchObject({ surface: 'confirm', typeToConfirm: false, confirmLabel: 'Delete 3 tracks permanently' });
+    expect(advise('empty-trash', { count: TIMING.confirmTypeAbove + 1 }).typeToConfirm).toBe(true);
+    expect(advise('empty-trash', { count: 50 }, { timing: { confirmTypeAbove: 100 } }).typeToConfirm).toBe(false);
+  });
+
+  it('ships the trash and collection presets', () => {
+    for (const name of ['move-to-trash', 'bulk-move-to-trash', 'add-to-collection', 'delete-permanently', 'empty-trash']) {
+      expect(PRESETS).toHaveProperty(name);
+    }
+    expect(advise('move-to-trash').durationMs).toBe(TIMING.actionMs);
+    expect(advise('add-to-collection', { count: 30 }).surface).toBe('toast');
+    expect(advise('add-to-collection', { count: 30, reversal: 'manual' }).surface).toBe('confirm');
+  });
+});

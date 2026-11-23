@@ -10,7 +10,7 @@
  * - `undo-toast/react` — the toast itself; `undo-toast/styles.css` — its look.
  */
 
-export { advise, RULES, TIMING } from './advise.js';
+export { advise, confirmLabel, RULES, TIMING } from './advise.js';
 export type { Advice, AdviseOptions, PauseReason, Rule, Surface, Timing } from './advise.js';
 export { CONTEXT_FIELDS, PRESETS, contextJsonSchema, presetContext, resolveContext } from './spec.js';
 export type { ActionContext, PresetName, ResolvedContext } from './spec.js';

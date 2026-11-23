@@ -21,6 +21,7 @@ describe.skipIf(!existsSync(cli))('undo-toast CLI', () => {
   it('lists the vocabulary', () => {
     expect(Object.keys(run('fields'))).toContain('reversal');
     expect(Object.keys(run('presets'))).toContain('send');
+    expect(Object.keys(run('presets'))).toEqual(expect.arrayContaining(['move-to-trash', 'bulk-move-to-trash', 'add-to-collection']));
     expect(run('rules').map((r: { id: string }) => r.id)).toContain('irreversible');
   });
 });

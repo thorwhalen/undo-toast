@@ -40,7 +40,7 @@ advise('remove-item').reasons;                          // [{ rule, why, source 
 
 | Field | Values (default first) | Means |
 |---|---|---|
-| `reversal` | `compensating`, `deferred`, `none` | undo applies the inverse / nothing is sent until the window ends / cannot be taken back |
+| `reversal` | `compensating`, `deferred`, `manual`, `none` | one Undo applies the inverse, in place / nothing is sent until the window ends / recoverable only by hand, item by item / cannot be taken back |
 | `cost` | `low`, `high` | what a mistake costs |
 | `frequency` | `occasional`, `rare`, `frequent` | `frequent` coalesces bursts into one toast |
 | `resultStaysInView` | `false`, `true` | the change is visible where it happened (then no toast) |
@@ -49,8 +49,22 @@ advise('remove-item').reasons;                          // [{ rule, why, source 
 | `hasUndoStack`, `hasTrash` | `false` | the toast is not the only way back |
 | `keepNotices` | `false` | the user's "keep notices until closed" setting |
 | `message` | | longer text stays longer |
+| `verb` | | the confirm button's label when the advice is to confirm (`'Move {count} items to Trash'`) |
 
-Presets: `remove-item`, `delete-work`, `bulk-delete`, `archive`, `clear-history`, `forget-secret`, `send`, `toggle`, `pay` (`npx undo-toast presets`). Every rule and number can be replaced: `advise(action, extra, { rules, timing, overrides })`, with `RULES` and `TIMING` exported.
+Presets: `remove-item`, `delete-work`, `bulk-delete`, `move-to-trash`, `bulk-move-to-trash`, `add-to-collection`, `delete-permanently`, `empty-trash`, `archive`, `clear-history`, `forget-secret`, `send`, `toggle`, `pay` (`npx undo-toast presets`). Every rule and number can be replaced: `advise(action, extra, { rules, timing, overrides })`, with `RULES` and `TIMING` exported.
+
+### Bulk actions on a selection
+
+A bulk action asks for confirmation, with the count, **unless one Undo takes the whole operation back in place**. Recoverable is not reversible: if taking it back means going to the playlist or the Trash and finding the 30 items one by one, say `reversal: 'manual'` and it confirms.
+
+```ts
+advise({ reversal: 'manual', count: 12, verb: 'Move {count} items to Trash' });
+// { surface: 'confirm', confirmLabel: 'Move 12 items to Trash', reasons: [{ rule: 'bulk-confirm', … }] }
+advise('bulk-move-to-trash', { count: 12 });             // a 15 s toast: one Undo restores the selection
+advise('empty-trash', { count: 40 }).typeToConfirm;      // true: irreversible, above timing.confirmTypeAbove (10)
+```
+
+Earn the toast by running the selection as one undo step (one history entry, one restore); the `bulk-one-step-undo` reason says so, for an agent to quote. Delete permanently and Empty Trash always confirm.
 
 ## The offer store
 
