@@ -64,6 +64,38 @@ describe('UndoToast', () => {
   });
 });
 
+describe('renderAction: the host draws the controls, the toast keeps the policy', () => {
+  it('uses the host control for Undo and close, and Undo still undoes', async () => {
+    const offers = createUndoOffers();
+    const undo = vi.fn();
+    render(
+      <UndoToast
+        offers={offers}
+        renderAction={(a) => (
+          <button ref={a.ref} type="button" data-host={a.kind} aria-describedby={a.describedBy} onClick={a.onActivate}>
+            {a.kind === 'undo' ? `BIG ${a.label}` : `BIG ${a.label}`}
+          </button>
+        )}
+      />,
+    );
+    act(() => void offers.offer({ message: '“Intro” removed', undo }));
+    const big = screen.getByRole('button', { name: /BIG Undo/ });
+    expect(big.getAttribute('data-host')).toBe('undo');
+    expect(big.getAttribute('aria-describedby')).toBe(screen.getByText('“Intro” removed').id);
+    expect(document.querySelector('.undo-toast-undo')).toBeNull(); // the default button is not drawn
+    await act(async () => void fireEvent.click(big));
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the default control for a kind the host leaves out', () => {
+    const offers = createUndoOffers();
+    render(<UndoToast offers={offers} renderAction={(a) => (a.kind === 'undo' ? <button type="button" onClick={a.onActivate}>Host undo</button> : undefined)} />);
+    act(() => void offers.offer({ message: 'x', undo: () => {} }));
+    expect(screen.getByRole('button', { name: 'Host undo' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close notification' })).toBeTruthy();
+  });
+});
+
 describe('matchesHotkey', () => {
   const ev = (key: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey', boolean>> = {}) => ({
     key, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods,

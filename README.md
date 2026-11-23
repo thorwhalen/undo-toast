@@ -96,6 +96,18 @@ const playerRef = useRef<HTMLDivElement>(null);
 useBottomDock(playerRef);   // the toast sits just above the player, or at the bottom when it is gone
 ```
 
+## The host's own buttons
+
+An app with its own pressable component (large touch targets, a tap guard, a lockout after a press: an app for users with hand tremor needs all three) draws the controls itself and keeps the toast's policy (timing, pauses, hotkeys, coalescing, failure and *Try again*):
+
+```tsx
+<UndoToast renderAction={(a) => (
+  <Press ref={a.ref} aria-describedby={a.describedBy} pending={a.pending} onTap={a.onActivate}>{a.label}</Press>
+)} />
+```
+
+`a.kind` is `'undo'` or `'close'`; return `undefined` to keep the default control for a kind. A longer offer for an accessibility setting is the host's advice: `offerUndo({ …, advice: { ...advise('remove-item'), durationMs: 15000 } })`.
+
 Styles are plain CSS with custom properties (`--undo-toast-bg`, `--undo-toast-fg`, `--undo-toast-accent`, `--undo-toast-gap`, `--undo-toast-z`, …); the toast inherits the page's font.
 
 ## For agents
