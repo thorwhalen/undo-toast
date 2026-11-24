@@ -84,3 +84,15 @@ describe('mountUndoToast', () => {
     field.remove();
   });
 });
+
+describe('mountUndoToast from a <script> in <head>', () => {
+  it('waits for the body instead of throwing', () => {
+    const body = document.body;
+    document.documentElement.removeChild(body); // as while <head> is parsed
+    const unmount = mountUndoToast({ offers: createUndoOffers() });
+    document.documentElement.appendChild(body);
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    expect(document.querySelector('.undo-toast-region')).not.toBeNull();
+    unmount();
+  });
+});
