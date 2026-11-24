@@ -182,23 +182,43 @@ function Toast({ view, offers, toastRef, undoRef, returnFocus, renderAction }: T
 }
 
 /**
- * Keep the toast above a bar docked at the bottom of the screen (a player, a tab bar): the bar's
- * height, measured live, becomes `--undo-toast-dock` on the root element. No hard-coded offset, so
- * the toast sits at the very bottom when the bar is gone and right above it when it is there.
+ * Keep the toast above a bar docked at the bottom of the screen (a player, a tab bar): the part
+ * of the bar that is on screen, measured live, becomes `--undo-toast-dock` on the root element.
+ * No hard-coded offset, so the toast sits at the very bottom when the bar is gone (unmounted, or
+ * slid off-screen while it stays mounted) and right above it when it is there. `active: false`
+ * removes the offset whatever is measured (for a bar hidden some other way).
  */
-export function useBottomDock(ref: RefObject<HTMLElement | null>, { property = '--undo-toast-dock' }: { property?: string } = {}): void {
+export function useBottomDock(
+  ref: RefObject<HTMLElement | null>,
+  { property = '--undo-toast-dock', active = true }: { property?: string; active?: boolean } = {},
+): void {
   useEffect(() => {
     const el = ref.current;
     const root = document.documentElement;
-    if (!el) return;
-    const measure = () => root.style.setProperty(property, `${el.getBoundingClientRect().height}px`);
+    if (!el || !active) {
+      root.style.removeProperty(property);
+      return;
+    }
+    // The visible part, not the height: a bar slid down by a transform is still measured, but
+    // its top is then at (or below) the bottom of the viewport.
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      const onScreen = Number.isFinite(rect.top) ? Math.min(rect.height, Math.max(0, window.innerHeight - rect.top)) : rect.height;
+      root.style.setProperty(property, `${Math.max(0, onScreen)}px`);
+    };
     measure();
-    if (typeof ResizeObserver === 'undefined') return () => root.style.removeProperty(property);
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
+    // A slide is a transform: no resize. Measure again when it ends, and when the window changes.
+    el.addEventListener('transitionend', measure);
+    el.addEventListener('animationend', measure);
+    window.addEventListener('resize', measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(el);
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
+      el.removeEventListener('transitionend', measure);
+      el.removeEventListener('animationend', measure);
+      window.removeEventListener('resize', measure);
       root.style.removeProperty(property);
     };
-  }, [ref, property]);
+  }, [ref, property, active]);
 }

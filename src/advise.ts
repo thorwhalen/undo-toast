@@ -189,14 +189,14 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'no-trash',
-    when: (c) => isCostly(c) && c.reversal === 'compensating' && !hasFallback(c),
+    when: (c) => isCostly(c) && c.takesAway && c.reversal === 'compensating' && !hasFallback(c),
     then: (a) => ({
       warnings: [
         ...a.warnings,
         'Costly and undoable only from the toast: add a trash or "recently removed" that outlives it, or an undo history, so a replaced or closed toast is not a lost item.',
       ],
     }),
-    why: 'The toast should be a shortcut, not the only way back; prefer a soft delete.',
+    why: 'The toast should be a shortcut, not the only way back; prefer a soft delete. Not for an action that only adds (takesAway: false): a lost toast loses nothing.',
     source: `${R} §2`,
   },
   {

@@ -47,6 +47,7 @@ advise('remove-item').reasons;                          // [{ rule, why, source 
 | `failsOften` | `false`, `true` | show it pending instead |
 | `count` | `1` | items touched |
 | `hasUndoStack`, `hasTrash` | `false` | the toast is not the only way back |
+| `takesAway` | `true` | the action takes something away (delete, remove, overwrite); `false` for an addition, which needs no trash |
 | `keepNotices` | `false` | the user's "keep notices until closed" setting |
 | `message` | | longer text stays longer |
 | `verb` | | the confirm button's label when the advice is to confirm (`'Move {count} {item|items} to Trash'`) |
@@ -93,7 +94,7 @@ An `undo` fails when it throws, rejects, or returns `false` or `{ ok: false }`; 
 
 ```tsx
 const playerRef = useRef<HTMLDivElement>(null);
-useBottomDock(playerRef);   // the toast sits just above the player, or at the bottom when it is gone
+useBottomDock(playerRef);   // the toast sits just above the visible part of the player, or at the bottom when it is gone or slid away
 ```
 
 ## The host's own buttons

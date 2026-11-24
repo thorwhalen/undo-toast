@@ -72,12 +72,46 @@ describe('useBottomDock', () => {
       useBottomDock(ref);
       return <div ref={ref}>player</div>;
     }
-    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ height: 120 } as DOMRect);
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ height: 120, top: window.innerHeight - 120 } as DOMRect);
     const { unmount } = render(<Bar />);
     expect(document.documentElement.style.getPropertyValue('--undo-toast-dock')).toBe('120px');
     unmount();
     expect(document.documentElement.style.getPropertyValue('--undo-toast-dock')).toBe('');
     spy.mockRestore();
+  });
+
+  it('a bar slid off-screen but still mounted lifts nothing; half slid out lifts its visible part (#6)', () => {
+    let top = window.innerHeight - 120;
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ height: 120, top }) as DOMRect);
+    function Bar() {
+      const ref = useRef<HTMLDivElement>(null);
+      useBottomDock(ref);
+      return <div ref={ref} data-testid="bar">player</div>;
+    }
+    render(<Bar />);
+    const dock = () => document.documentElement.style.getPropertyValue('--undo-toast-dock');
+    expect(dock()).toBe('120px');
+    top = window.innerHeight; // translate-y-full: slid away
+    fireEvent.transitionEnd(screen.getByTestId('bar'));
+    expect(dock()).toBe('0px');
+    top = window.innerHeight - 50; // half out
+    fireEvent(window, new Event('resize'));
+    expect(dock()).toBe('50px');
+    spy.mockRestore();
+  });
+
+  it('active: false removes the offset', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ height: 80, top: window.innerHeight - 80 } as DOMRect);
+    function Bar({ shown }: { shown: boolean }) {
+      const ref = useRef<HTMLDivElement>(null);
+      useBottomDock(ref, { active: shown });
+      return <div ref={ref}>player</div>;
+    }
+    const { rerender } = render(<Bar shown />);
+    expect(document.documentElement.style.getPropertyValue('--undo-toast-dock')).toBe('80px');
+    rerender(<Bar shown={false} />);
+    expect(document.documentElement.style.getPropertyValue('--undo-toast-dock')).toBe('');
+    vi.restoreAllMocks();
   });
 });
 
