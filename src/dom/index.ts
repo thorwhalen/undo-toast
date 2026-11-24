@@ -25,7 +25,6 @@ let nextId = 0;
 
 /** Mount the toast once, always (its live region must exist before a message). Returns `unmount`. */
 export function mountUndoToast({ offers = getUndoOffers(), regionLabel = 'Notifications', container }: MountUndoToastOptions = {}): () => void {
-  const host = container ?? document.body;
   const region = el('section', 'undo-toast-region');
   region.setAttribute('aria-label', regionLabel);
   const live = el('div');
@@ -33,7 +32,10 @@ export function mountUndoToast({ offers = getUndoOffers(), regionLabel = 'Notifi
   live.setAttribute('aria-live', 'polite');
   live.setAttribute('aria-atomic', 'true');
   region.append(live);
-  host.append(region);
+  // Called from a <script> in <head>, there is no body yet: attach once the page is parsed.
+  const attach = () => (container ?? document.body).append(region);
+  if (container || document.body) attach();
+  else document.addEventListener('DOMContentLoaded', attach, { once: true });
 
   let toast: HTMLElement | null = null;
   let undoButton: HTMLButtonElement | null = null;
