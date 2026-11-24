@@ -18,6 +18,14 @@ describe.skipIf(!existsSync(cli))('undo-toast CLI', () => {
     expect(a.onClose).toBe('commit');
     expect(a.hotkeys.undo).toBeNull();
   });
+  it('unsets a boolean field with --no-<field> or --<field>=false (takesAway defaults to true)', () => {
+    const warns = (...args: string[]) => run('advise', '--reversal', 'compensating', '--count', '30', ...args).warnings.length;
+    expect(warns()).toBe(1);
+    expect(warns('--no-takes-away')).toBe(0);
+    expect(warns('--takes-away=false')).toBe(0);
+    expect(warns('--takes-away=true')).toBe(1);
+  });
+
   it('lists the vocabulary', () => {
     expect(Object.keys(run('fields'))).toContain('reversal');
     expect(Object.keys(run('presets'))).toContain('send');

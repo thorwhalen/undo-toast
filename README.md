@@ -94,7 +94,8 @@ An `undo` fails when it throws, rejects, or returns `false` or `{ ok: false }`; 
 
 ```tsx
 const playerRef = useRef<HTMLDivElement>(null);
-useBottomDock(playerRef);   // the toast sits just above the visible part of the player, or at the bottom when it is gone or slid away
+useBottomDock(playerRef);   // the toast sits just above the player (floating bars too), or at the bottom when it is gone or slid away
+// a bar that mounts later than this hook: pass the element itself (a callback ref kept in state)
 ```
 
 ## The host's own buttons

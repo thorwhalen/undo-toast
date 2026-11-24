@@ -45,8 +45,19 @@ function main(argv: string[]): number {
     return 2;
   }
   const options = Object.fromEntries(fields.map(([k, f]) => [kebab(k), { type: isBool(f.values) ? 'boolean' : 'string' } as const]));
-  const { values, positionals } = parseArgs({ args: rest, options, allowPositionals: true, strict: true });
-  const context: Record<string, unknown> = {};
+  // A boolean field is set by its flag (`--has-trash`), and unset with `--no-<field>` or
+  // `--<field>=false` (`takesAway` defaults to true, so false must be expressible).
+  const booleans = new Map(fields.filter(([, f]) => isBool(f.values)).map(([k]) => [kebab(k), k]));
+  const explicit: Record<string, boolean> = {};
+  const args = rest.filter((arg) => {
+    const neg = /^--no-(.+)$/.exec(arg);
+    if (neg && booleans.has(neg[1]!)) return (explicit[booleans.get(neg[1]!)!] = false), false;
+    const eq = /^--([^=]+)=(true|false)$/.exec(arg);
+    if (eq && booleans.has(eq[1]!)) return (explicit[booleans.get(eq[1]!)!] = eq[2] === 'true'), false;
+    return true;
+  });
+  const { values, positionals } = parseArgs({ args, options, allowPositionals: true, strict: true });
+  const context: Record<string, unknown> = { ...explicit };
   for (const [k, f] of fields) {
     const v = (values as Record<string, unknown>)[kebab(k)];
     if (v === undefined) continue;

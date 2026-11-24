@@ -113,6 +113,34 @@ describe('useBottomDock', () => {
     expect(document.documentElement.style.getPropertyValue('--undo-toast-dock')).toBe('');
     vi.restoreAllMocks();
   });
+
+  it('a floating bar (a safe-area gap below it) lifts the toast above its top', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ height: 70, top: window.innerHeight - 70 - 34 } as DOMRect);
+    function Bar() {
+      const ref = useRef<HTMLDivElement>(null);
+      useBottomDock(ref);
+      return <div ref={ref}>player</div>;
+    }
+    render(<Bar />);
+    expect(document.documentElement.style.getPropertyValue('--undo-toast-dock')).toBe('104px');
+    vi.restoreAllMocks();
+  });
+
+  it('an inactive or empty instance never removes the offset another bar wrote', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ height: 60, top: window.innerHeight - 60 } as DOMRect);
+    function Bar() {
+      const ref = useRef<HTMLDivElement>(null);
+      useBottomDock(ref);
+      return <div ref={ref}>player</div>;
+    }
+    function Empty() {
+      useBottomDock(null);
+      return null;
+    }
+    render(<><Bar /><Empty /></>);
+    expect(document.documentElement.style.getPropertyValue('--undo-toast-dock')).toBe('60px');
+    vi.restoreAllMocks();
+  });
 });
 
 describe('adapters', () => {

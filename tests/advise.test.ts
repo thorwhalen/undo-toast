@@ -150,6 +150,8 @@ describe('bulk actions: confirm unless one Undo takes it all back', () => {
     // Adding takes nothing away: no "add a trash" warning for a bulk add (#9).
     expect(advise('add-to-collection', { count: 30 }).warnings).toEqual([]);
     expect(advise('remove-item', { count: 30 }).warnings.join(' ')).toMatch(/add a trash/);
+    const why = advise('add-to-collection', { count: 30 }).reasons.map((r) => r.why).join(' ');
+    expect(why).not.toMatch(/Give the app an undo history or a trash/);
     expect(advise('add-to-collection', { count: 30, reversal: 'manual' }).surface).toBe('confirm');
   });
 });

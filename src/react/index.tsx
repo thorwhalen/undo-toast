@@ -182,43 +182,51 @@ function Toast({ view, offers, toastRef, undoRef, returnFocus, renderAction }: T
 }
 
 /**
- * Keep the toast above a bar docked at the bottom of the screen (a player, a tab bar): the part
- * of the bar that is on screen, measured live, becomes `--undo-toast-dock` on the root element.
- * No hard-coded offset, so the toast sits at the very bottom when the bar is gone (unmounted, or
- * slid off-screen while it stays mounted) and right above it when it is there. `active: false`
- * removes the offset whatever is measured (for a bar hidden some other way).
+ * Keep the toast above a bar docked at the bottom of the screen (a player, a tab bar): the
+ * distance from the bar's top to the bottom of the viewport, measured live, becomes
+ * `--undo-toast-dock` on the root element. No hard-coded offset: the toast sits at the very
+ * bottom when the bar is gone (unmounted, or slid off-screen while it stays mounted), right above
+ * it when it is there, floating bars (a safe-area gap below them) included. `active: false`
+ * removes the offset for a bar hidden some other way.
+ *
+ * Pass a ref, or the element itself (from a callback ref kept in state) when the bar mounts
+ * after the component that calls this hook: a ref that is null when the effect runs is not
+ * watched afterwards.
  */
 export function useBottomDock(
-  ref: RefObject<HTMLElement | null>,
+  target: RefObject<HTMLElement | null> | HTMLElement | null,
   { property = '--undo-toast-dock', active = true }: { property?: string; active?: boolean } = {},
 ): void {
+  const isRef = !!target && !(typeof HTMLElement !== 'undefined' && target instanceof HTMLElement);
   useEffect(() => {
-    const el = ref.current;
+    const el = isRef ? (target as RefObject<HTMLElement | null>).current : (target as HTMLElement | null);
     const root = document.documentElement;
-    if (!el || !active) {
-      root.style.removeProperty(property);
-      return;
-    }
-    // The visible part, not the height: a bar slid down by a transform is still measured, but
-    // its top is then at (or below) the bottom of the viewport.
+    if (!el || !active) return; // never touch the property this instance did not write
+    // The layout viewport (what position: fixed uses): steady under pinch-zoom and the Android
+    // keyboard, and it follows iOS's toolbar collapse.
+    const viewport = () => Math.max(window.innerHeight, root.clientHeight);
     const measure = () => {
-      const rect = el.getBoundingClientRect();
-      const onScreen = Number.isFinite(rect.top) ? Math.min(rect.height, Math.max(0, window.innerHeight - rect.top)) : rect.height;
-      root.style.setProperty(property, `${Math.max(0, onScreen)}px`);
+      const top = el.getBoundingClientRect().top;
+      const vh = viewport();
+      const lift = Number.isFinite(top) ? Math.min(vh, Math.max(0, vh - top)) : el.getBoundingClientRect().height;
+      root.style.setProperty(property, `${lift}px`);
     };
     measure();
-    // A slide is a transform: no resize. Measure again when it ends, and when the window changes.
-    el.addEventListener('transitionend', measure);
-    el.addEventListener('animationend', measure);
+    // A slide is a transform (no resize, maybe no transition event: reduced motion, JS-driven,
+    // an ancestor moving): an IntersectionObserver sees it whatever moved it.
+    const io = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(measure, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+    io?.observe(el);
+    const own = (e: Event) => { if (e.target === el) measure(); }; // not every hover inside the bar
+    for (const ev of ['transitionend', 'transitioncancel', 'animationend']) el.addEventListener(ev, own);
     window.addEventListener('resize', measure);
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
-    observer?.observe(el);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(el);
     return () => {
-      observer?.disconnect();
-      el.removeEventListener('transitionend', measure);
-      el.removeEventListener('animationend', measure);
+      io?.disconnect();
+      ro?.disconnect();
+      for (const ev of ['transitionend', 'transitioncancel', 'animationend']) el.removeEventListener(ev, own);
       window.removeEventListener('resize', measure);
       root.style.removeProperty(property);
     };
-  }, [ref, property, active]);
+  }, [isRef ? (target as RefObject<HTMLElement | null>) : target, isRef, property, active]); // eslint-disable-line react-hooks/exhaustive-deps
 }
