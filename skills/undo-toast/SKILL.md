@@ -26,6 +26,7 @@ What to tell it (run `npx undo-toast fields` for the full table):
 | `resultStaysInView` | Does the changed thing stay on screen showing its new state (a checkbox, a rename)? Then it is its own feedback. |
 | `frequency`, `count` | A burst of the same action merges into one toast; several items lengthen the window. |
 | `hasUndoStack`, `hasTrash` | Does the app keep an undo history (Ctrl/Cmd+Z) or a trash? Then the toast is a shortcut, not the only way back. |
+| `takesAway` | Does it take something away (delete, remove, overwrite)? `false` for an addition (to a playlist, a tag): a lost toast loses nothing, so no trash is called for. |
 | `keepNotices` | The user's setting "keep notices until I close them" (WCAG 2.2.1). |
 | `verb` | What the confirm button should say if it comes to that: `'Move {count} {item|items} to Trash'` (`{count}` is filled in). |
 
@@ -51,7 +52,7 @@ offerUndo({ message: `“${item.title}” removed`, undo: () => insertSegment(it
 ```
 
 - **Deferred** (nothing sent yet): pass `commit` too. It runs once when the window ends, when the user closes the toast, when another offer replaces it, or on `pagehide`. `undo` then only restores the screen.
-- **A docked bottom bar** (a player, a tab bar): `useBottomDock(barRef)` on it. The toast then sits just above it, and at the very bottom when the bar is gone. Never hard-code an offset (`bottom: 11rem`): that is how a toast ends up a third of the way up the screen.
+- **A docked bottom bar** (a player, a tab bar): `useBottomDock(barRef)` on it. The toast then sits just above its visible part, and at the very bottom when the bar is gone or slid off-screen (a transform); `{ active: false }` for a bar hidden some other way. Never hard-code an offset (`bottom: 11rem`): that is how a toast ends up a third of the way up the screen.
 - **A burst** (triage deletes): `key: 'remove'` and a message function `(n) => \`${n} segments removed\``; the advice for `frequency: 'frequent'` coalesces.
 - **An app with its own undo history** (acture-undo): `offerUndo(offerFromHistory(history, { message, context: 'remove-item' }))` after the dispatch. Undo rolls the history back one entry, `{ ok: false }` shows as a failure, and Ctrl/Cmd+Z stays the app's.
 - **zodal undoable mutations**: `onFeedback: (f) => { const o = offerFromMutationFeedback(f, { message: 'Row deleted' }); if (o) offerUndo(o); }`. zodal owns that window's timer, so the toast lasts as long and does not pause (until i2mint/zodal#146); a too-late undo (`false`) shows as a failure. Set zodal's `undoSeconds` from `advise({ reversal: 'deferred' }).durationMs / 1000`.

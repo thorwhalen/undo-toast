@@ -54,6 +54,12 @@ export const CONTEXT_FIELDS = {
     describe:
       'True when the app keeps its own undo history (acture-undo, Ctrl/Cmd+Z). Then the toast is a shortcut, the app owns Ctrl/Cmd+Z, and the action stays undoable after the toast leaves.',
   },
+  takesAway: {
+    values: [true, false] as const,
+    default: true,
+    describe:
+      "True when the action takes something from the user (deletes, removes, overwrites): losing its undo toast can lose their work. False when it only adds (to a playlist, a tag): if the undo is lost, nothing is gone, so no trash or undo history is called for.",
+  },
   hasTrash: {
     values: [true, false] as const,
     default: false,
@@ -113,7 +119,7 @@ export const PRESETS = {
   'add-to-collection': {
     describe:
       "Add items to a playlist, folder or collection that is not in view (pass count for a selection). One Undo takes the addition back; pass reversal: 'manual' when the only way back is editing the collection by hand, and a bulk add asks first.",
-    context: { reversal: 'compensating', cost: 'low', verb: 'Add to collection' },
+    context: { reversal: 'compensating', cost: 'low', takesAway: false, verb: 'Add to collection' },
   },
   'delete-permanently': {
     describe: 'Delete from the Trash for good (pass count). Cannot be taken back: always confirms.',

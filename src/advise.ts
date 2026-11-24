@@ -152,8 +152,15 @@ export const RULES: readonly Rule[] = [
     final: true,
   },
   {
+    id: 'only-way-back-addition',
+    when: (c) => c.reversal === 'compensating' && !hasFallback(c) && !c.takesAway,
+    then: () => ({ durationMs: null }),
+    why: 'The toast is the only quick way to take the addition back, so it stays until Undo, Close, Escape, or the next action replaces it (Material 3: a snackbar with an action should remain). Nothing is lost if it goes: no trash or undo history is called for.',
+    source: `${R} §2`,
+  },
+  {
     id: 'only-way-back',
-    when: (c) => c.reversal === 'compensating' && !hasFallback(c),
+    when: (c) => c.reversal === 'compensating' && !hasFallback(c) && c.takesAway,
     then: () => ({ durationMs: null }),
     why: 'The toast is the only way to undo, so it stays until Undo, Close, Escape, or the next action replaces it (Material 3: a snackbar with an action should remain; WCAG 2.2.1: a time limit must be adjustable). Give the app an undo history or a trash to make it timed.',
     source: `${R} §2`,
@@ -189,14 +196,14 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'no-trash',
-    when: (c) => isCostly(c) && c.reversal === 'compensating' && !hasFallback(c),
+    when: (c) => isCostly(c) && c.takesAway && c.reversal === 'compensating' && !hasFallback(c),
     then: (a) => ({
       warnings: [
         ...a.warnings,
         'Costly and undoable only from the toast: add a trash or "recently removed" that outlives it, or an undo history, so a replaced or closed toast is not a lost item.',
       ],
     }),
-    why: 'The toast should be a shortcut, not the only way back; prefer a soft delete.',
+    why: 'The toast should be a shortcut, not the only way back; prefer a soft delete. Not for an action that only adds (takesAway: false): a lost toast loses nothing.',
     source: `${R} §2`,
   },
   {
